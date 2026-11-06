@@ -6,7 +6,7 @@ Your job is to understand the request, use the right project skills, write a cle
 
 <!-- BEGIN:nextjs-agent-rules -->
 
-# This is NOT the Next.js you know
+## This is NOT the Next.js you know
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
 
@@ -75,14 +75,8 @@ The project is two standalone workspaces in one repo. Build it this way and do n
 
 Inside web, keep these responsibilities apart:
 
-- Pages (catalog, course, lesson, instructor) are read only. They display stored data.
-- Auth is Clerk, wired through Next.js middleware. It gates whatever a feature marks as private, keeps its secret key on the server, and exposes only its publishable key to the browser.
 - Data access is a server only Sanity client and fetch helper, reading a private dataset with a token.
-- The search API is a server route that connects to the Sanity Context MCP, injects the schema and the system prompt, calls the LLM, and streams results back.
-- The search UI is a client component that renders the search results page (video results and lesson results) from that response.
 - Analytics is PostHog, running in the browser with the public project key and capturing the engagement events. Any server side capture keeps a private key on the server.
-- The video pipeline is offline tooling that ingests transcripts and chapters into video documents. It never runs in the request path.
-- The search config is a Sanity Context document holding the content scope and the query instructions.
 
 Never cross these boundaries. The browser holds no token, never calls the MCP or the LLM, and never writes content or progress. Any write, such as saving progress, goes through a server route. The UI only shows stored data.
 
@@ -90,7 +84,7 @@ Never cross these boundaries. The browser holds no token, never calls the MCP or
 
 # 6. Tech stack
 
-Use Next.js (App Router), Clerk for authentication, PostHog for product analytics, Sanity Studio with `next-sanity`, `@sanity/image-url`, and `@portabletext/react`, Tailwind with typography, the Sanity Context MCP over server side HTTP, the Vercel AI SDK with the OpenAI provider, `react-markdown` only for rendering the search reply, Zod for validating structured output, and TypeScript.
+Use Next.js (App Router), PostHog for product analytics, Sanity Studio with `next-sanity`, `@sanity/image-url`, and `@portabletext/react`, Tailwind with typography, the Sanity Context MCP over server side HTTP, the Vercel AI SDK with the OpenAI provider, `react-markdown` only for rendering the search reply, Zod for validating structured output, and TypeScript.
 
 Do not use the `@sanity/context` Studio plugin when it lags the Studio's Sanity major version, `text::semanticSimilarity()` unless embeddings are enabled, an embedded Studio, a public dataset, a client side token, or a separate backend framework. Section 12 explains why.
 
@@ -100,85 +94,27 @@ Do not use the `@sanity/context` Studio plugin when it lags the Studio's Sanity 
 
 Build to these unless the user changes them. They exist because search quality and safety depend on them.
 
-- Search is the Sanity Context MCP plus an LLM, and you surface it as result cards, not a chatbox. The LLM writes GROQ over the schema through the MCP, and the UI renders structured lesson cards instead of conversational prose.
-- Search is grounded. Say only what the data returns. Never invent a course, lesson, price, duration, or timestamp.
-- Video intelligence lives in dedicated video documents, one per unique video. Each holds a table of contents and the transcript split into timestamped pieces (section 8). Lessons link to them by video URL. Treat these documents as an internal lookup and never show them to the user as results.
-- Timestamps resolve in two stages. Match the chapters (the table of contents) first, and fall back to matching the transcript only if no chapter matches. Chapter labels are clean, and transcript text is the noisier backstop.
-- Playback stays on the site through a provider embed. Videos are YouTube, Vimeo, or Bunny embeds shown on the lesson page with the provider's own player. Do not build a custom player. A result links to the lesson page with a start seconds query param, and the embed starts at that second using the provider's own start parameter. Never send the learner out to the provider.
-- Content is coherent from top to bottom. A module's lessons genuinely cover that module's topic. If the lessons are unrelated to their module, search returns junk.
-- Content is structured, using Portable Text and typed fields, never markdown. Markdown shows up only in what the search agent replies.
-- Authentication is Clerk. Do not use Sanity's auth or roll your own. Keep browsing public and gate only what a feature marks as protected. Learner progress and any other per user state key off the Clerk user id. The browser never writes it directly. Those writes go through a server route with a write token, and this state is kept apart from the read only content the pages render.
-- Progress is tracked per learner: which lessons they have completed and where they left off in a lesson (a resume position). Surface it as completion marks and a resume affordance on the catalog, course, and lesson pages.
-- Product analytics is PostHog. Instrument the moments that show engagement: catalog and lesson views, a search performed, a video play and how far it is watched, and a lesson completed. The browser uses the public PostHog project key. Keep any private PostHog API key on the server.
-- Search is a full results page, not a compact widget and not a chatbox. It returns all ranked matches with a result count and a sort control, and it shows two kinds of result, video moments and lessons (section 11).
-- Some surfaces are presentational only, with no backend of their own: the My Learning page, the notifications bell, the lesson Notes tab, and the free preview badge. My Learning may read existing progress for display. Free preview is a label, not access control.
-
 ---
 
 # 8. The data you are modeling
 
-Here is the shape of the content in Sanity. The relationships and the fields called out below are fixed. Everything else about each field is yours to choose sensibly.
-
-- A course is the top level. It has a title and slug, marketing fields (summary, cover image, level, price), an optional popular flag and a student count for display, a short list of learning outcomes for the what you'll learn section (each with an icon, a title, and a description), a reference to an instructor and a category, and an ordered list of modules.
-- A module is an embedded object inside a course, not its own document. It has a title, a summary, and an ordered list of references to lessons. The numbers shown in the UI, like Module 5 or Lesson 5.1, are derived from order, not stored.
-- A lesson is a document. It has a title and slug, a video URL, a poster or thumbnail image, a duration, a free preview flag, and a student count for display. It also has rich text notes in Portable Text, a short list of key points for the in this lesson you will section, an optional pro tip, and a list of resources (each with a type, a title, a description, and a url). A lesson does not store its parent course, so derive the course with a reverse reference when you need it.
-- An instructor has a name and slug, a photo, expertise, and a bio. Surface the instructor on the course and lesson, and give each instructor their own page.
-- A category has a title and slug and a description.
-- A video document is built by the ingestion pipeline (section 9), one per unique video URL. It holds an id and url, a chapters array of `{ startSeconds, label }` for the table of contents, and a chunks array of `{ startSeconds, text }` for the transcript in short timestamped pieces. It never keeps the whole transcript in one field that a query would return wholesale.
-- An agent context document is the search configuration: a content scope filter and the search agent's query instructions (section 10).
-- A progress record captures a learner's state, keyed by the Clerk user id: which lessons they completed and their last position in a lesson. It is app state, written only through a server route, and kept apart from the read only content above.
-
 ---
 
-# 9. How videos get their transcripts
-
-Build the video documents with offline tooling, keyed by an id derived from the video URL, stripping any characters the datastore rejects in ids. Store the transcript as many short timestamped chunks, and store the source's chapter markers as the table of contents. Keep whole transcripts out of anything the request path returns.
-
-The supported providers are YouTube, Vimeo, and Bunny, each shown as an embed on the lesson page. Ingestion is specific to each provider: to support one you need a way to turn its captions into chunks, a source of chapters or authored ones, and a playback and seek case for its embed. Do not treat a provider as supported until both ingestion and playback exist for it.
-
----
-
-# 10. The search config document
-
-The Sanity Context document lets the user tune the agent without a code change. It carries a content scope filter that limits the visible types to the content ones, and instructions that hold the query guidance from section 11, kept short as deltas the schema does not already make obvious. Use dial-your-context to write it. If the Studio plugin is not available (section 12), create and edit this document by import or through the Sanity MCP. Edits to it reach the agent on the next request, but changes to the inline system prompt need a server restart.
-
----
-
-# 11. How search must behave
-
-Search is a full results page, not a compact widget and not a chatbox. Keep it behaving like this.
-
-- Return all relevant results, ranked best first, with a count (for example, found 28 results across 8 courses) and a sort control that defaults to most relevant. Do not cap to a handful. When nothing fits, show an empty state that points to the full catalog.
-- Results come in two kinds, matching the design.
-  - A video result is a lesson's video matched at a specific moment. Carry the course (name and icon), the module and lesson label (for example, Lesson 5.1 in Data Fetching and Caching), a thumbnail, the clip length, a short description, and the matched second. Its action watches from that second on the lesson page.
-  - A lesson result is a lesson matched on its own topic. Carry the course, the module and lesson label, the lesson's key points, and a short description. Its action opens the lesson page.
-- For a query, search both ways and merge: match lessons on their topic (title and notes), and match video moments (chapters first, then transcript, per section 7). Rank by specificity, so a title that contains the exact concept beats a broad keyword hit.
-- Ground every result in real data. Never invent a course, lesson, timestamp, or count. The video documents stay an internal lookup, and a video result is always tied to the lesson that uses that video, never shown on its own.
-- Text match is token based, so wildcard your keywords and OR multiple words. Never match a whole phrase as one pattern. You cannot text match a Portable Text field directly, so match its plain text projection.
-- Put the critical query and ranking rules in both the inline system prompt and the Context document, because the model follows the system prompt more reliably.
-
----
-
-# 12. Things that will trip you up
+# 9. Things that will trip you up
 
 You cannot infer these from the code, so keep them in mind.
 
 - The Context MCP only serves a dataset that has a deployed Studio application. A schema only deploy is not enough.
 - The `@sanity/context` Studio plugin may not support the Studio's current Sanity major version. When it does not, do not install it. Edit the Context document by import, and expect Conversation Insights to be unavailable until the plugin catches up.
-- Semantic search may be turned off. If `text::semanticSimilarity()` errors with embeddings not enabled, fall back to keyword match with wildcards. Turning embeddings on is a plan and billing decision.
-- The model follows the inline system prompt more reliably than the injected Context document instructions, so put the critical rules in both.
 - If the system prompt is a template literal, escape backticks inside it or the build fails.
-- The search route should cache initial context. Once it does, your instruction and prompt changes only take effect after a server restart.
-- Never return a whole transcript or chunks array to the model. It overflows the context window. Fetch only the filtered matches, a few per video.
 - The dataset is private. Keep the read token on the server, never expose it to the client, and fetch all content server side.
 - Keep project ids and keys in env, expose only client safe values to the browser, and keep a committed `.env.example` as the canonical list.
-- Clerk's secret key is server only. Only its publishable key may reach the browser, and protect private routes in Next.js middleware, not in client code.
 - Any write token, such as the one used to save progress, is server only and used only inside a server route. The browser never writes content or progress.
 - PostHog's project key is public by design and may reach the browser. Any private PostHog API key stays server only.
 
 ---
 
-# 13. Checks to run
+# 10. Checks to run
 
 Run these from the correct workspace and report the real output. Never claim a check passed without running it.
 
@@ -189,6 +125,27 @@ After you implement, run the type check and lint at minimum, add a build when ro
 
 ---
 
-# 14. When in doubt
+# 11. When in doubt
 
 Keep it small. Use the relevant skill. Preserve the server and client boundaries and the private token rule. Match the provided UI exactly. Get specifics from setup and config instead of hardcoding them. Save a prompt and get approval before coding. Run the checks. Share exact test steps.
+
+<!-- BEGIN:nextjs-agent-feedback -->
+
+## Report Next.js feedback
+
+The project owner enabled `experimental.agentFeedback`, authorizing this feedback pass. When enabled, `next dev` writes this block and restores it if removed. Commit `AGENTS.md` with your work to keep the tree clean.
+
+During the current user request, retain anonymized facts as feedback candidates for meaningful or recurring Next.js issues:
+
+- Crashes, hangs, OOMs, or unexpected slowness
+- Incorrect behavior, output, errors, or diagnostics
+- Missing, unclear, or conflicting documentation
+- Unexpected CLI, codemod, Skill, or upgrade behavior and non-obvious workarounds
+
+Continue the current user request without reporting immediately. Routine debugging is not feedback. Verify changes before retaining them as feedback candidates. Never retain code, logs, paths, URLs, secrets, personal information, or project-specific data.
+
+Retain qualifying friction even if it is later fixed or worked around; record the final outcome during the reporting pass.
+
+Before the final response, run one reporting pass. If candidates remain, from this file's directory run `npx --no-install next internal agent-feedback-instructions` once without piping or truncating its output. Follow its output or error guidance. If a network sandbox blocks it, retry with network access; if it still returns no output, continue normally.
+
+<!-- END:nextjs-agent-feedback -->
