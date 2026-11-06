@@ -2,7 +2,21 @@ import Script from "next/script";
 
 const GTM_ID = "GTM-554XJ9HG";
 
+function isLiveSite() {
+  const targetEnvironment = process.env.VERCEL_TARGET_ENV;
+
+  if (targetEnvironment) {
+    return targetEnvironment === "production";
+  }
+
+  return process.env.VERCEL_ENV === "production";
+}
+
 export function GoogleTagManager() {
+  if (!isLiveSite()) {
+    return null;
+  }
+
   return (
     <>
       <Script
