@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { CookieSettingsLink } from "./components/cookie-settings-link";
 import { GoogleTagManager } from "./components/google-tag-manager";
+import { Usercentrics } from "./components/usercentrics";
+import { isLiveSite } from "./lib/is-live-site";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -24,9 +27,17 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      <head>
+        <Usercentrics />
         <GoogleTagManager />
+      </head>
+      <body className="min-h-full flex flex-col">
         {children}
+        {isLiveSite() ? (
+          <footer className="px-16 py-6 text-sm text-zinc-600 dark:text-zinc-400">
+            <CookieSettingsLink />
+          </footer>
+        ) : null}
       </body>
     </html>
   );

@@ -1,16 +1,7 @@
 import Script from "next/script";
+import { isLiveSite } from "../lib/is-live-site";
 
 const GTM_ID = "GTM-554XJ9HG";
-
-function isLiveSite() {
-  const targetEnvironment = process.env.VERCEL_TARGET_ENV;
-
-  if (targetEnvironment) {
-    return targetEnvironment === "production";
-  }
-
-  return process.env.VERCEL_ENV === "production";
-}
 
 export function GoogleTagManager() {
   if (!isLiveSite()) {
@@ -23,6 +14,7 @@ export function GoogleTagManager() {
         id="google-tag-manager"
         src={`https://www.googletagmanager.com/gtm.js?id=${GTM_ID}`}
         strategy="beforeInteractive"
+        async
       />
       <Script id="google-tag-manager-datalayer" strategy="beforeInteractive">
         {`window.dataLayer = window.dataLayer || [];
