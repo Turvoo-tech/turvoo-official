@@ -6,11 +6,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run"
   },
   "dependencies": {
     "@sanity/image-url": "^2.1.1",
     "@sanity/vision": "^5.31.2",
+    "lucide-react": "^1.71.0",
     "next": "16.4.5",
     "next-sanity": "^13.4.0",
     "react": "19.3.0",
@@ -26,6 +28,13 @@
     "eslint": "^9",
     "eslint-config-next": "16.4.5",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.12"
+  },
+  "overrides": {
+    "adm-zip": "0.6.1",
+    "js-yaml@3": "3.15.2",
+    "minimatch@10": "11.0.5",
+    "uuid@10": "11.1.1"
   }
 }
